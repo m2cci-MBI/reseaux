@@ -13,16 +13,16 @@
 
 #include<stdio.h>
 #include <curses.h>
-
+#include<string.h>
 #include<sys/signal.h>
 #include<sys/wait.h>
 #include<stdlib.h>
-
+#include<time.h>
 #include "fon.h"     		/* Primitives de la boite a outils */
 
 #define SERVICE_DEFAUT "1111"
 #define MAXTOUR 10
-#define BUFFER 50
+#define BUFFER 100
 
 void serveur_appli (char *service);   /* programme serveur */
 
@@ -58,6 +58,13 @@ int main(int argc,char *argv[])
 }
 
 
+void JouerUnePartie(int socket_client);
+void CreationTabCouleurs(int n, int jeu[]);
+void JouerUnTour(int *listeCouleur, int n, int tour, int socket_client, int nb_couleurs);
+void ComparerSolutionUtilisateur(int *jeu, int *listeCouleur, int *tableauResultats, int tour, int n);
+int PartieGagnee(int *tableauResultats, int n, int tour);
+void conversionTabCouleurs(int tour, int n, int *tableauResultats, int *listeCouleur, int socket_client);
+void messageFinDePartie (int tour, int socket_client);
 /******************************************************************************/
 void serveur_appli(char *service) {
 	/* Cr�ation des variables syst�me */
@@ -79,7 +86,7 @@ void serveur_appli(char *service) {
 
 	/* mise en �coute du serveur */
 	h_listen(num_socket, 10);
-
+void JouerUnePartie(int socket_client);
 	while (true) {
 		/* Cr�ation d'une nouvelle socket connect�e avec un client */
 		socket_client = h_accept(num_socket, &p_adr_client);
@@ -110,15 +117,16 @@ void JouerUnePartie(int socket_client) {
 	/*-------------------------------------------------------------------*/
 	/* S�lection de la difficult� */
 	nb_couleurs = 4; /*SelectionDifficultee(socket_client);*/
-	strcpy(bufferEmi,"Bonjour et bienvenu(s) au jeu MasterMind de Marco&Sarra!\n
-	Vous avez 10 tours pour deviner une série de 4 couleurs.\n
-	Après soumission de votre séquence, dans la réponse du serveur 0 indique
- couleur presente mal placee, 1 indique couleur bien placee\n");
+	int lg_msg_envoie, lg_msg_recu;
+	char *bufferRecep = (char *) calloc (BUFFER,  sizeof(char));
+	char *bufferEmi = (char *) calloc (BUFFER, sizeof(char));
+	strcpy(bufferEmi,"Bonjour et bienvenu(s) au jeu MasterMind de Marco&Sara!\n Vous avez 10 tours pour deviner une série de 4 couleurs.\nAprès soumission de votre séquence, dans la réponse du serveur 0 indique couleur presente mal placee, 1 indique couleur bien placee\n");
 
-	lg_msg_envoie = h_writes(sock_client, bufferEmi, BUFFER)
+	lg_msg_envoie = h_writes(socket_client, bufferEmi, BUFFER);
 	/*-------------------------------------------------------------------*/
 	/* Cr�ation du jeu de couleur � deviner */
 	int jeuATrouver[nb_couleurs];
+	void CreationTabCouleurs(int n, int jeu[]);
 	CreationTabCouleurs(nb_couleurs, jeuATrouver);
 		/* Affichage du jeu � trouver */
 #ifdef AFFICHER_JEU
@@ -144,7 +152,7 @@ void JouerUnePartie(int socket_client) {
 	/*-------------------------------------------------------------------*/
 	/* D�roulement de la partie */
 	do {
-		JouerUnTour(tableauCouleur,nb_couleurs,tour,socket_client);
+		JouerUnTour(tableauCouleur,nb_couleurs,tour,socket_client, nb_couleurs);
 		ComparerSolutionUtilisateur(jeuATrouver,tableauCouleur,tableauResultats,tour,nb_couleurs);
 		conversionTabCouleurs(tour,nb_couleurs,tableauResultats,tableauCouleur, socket_client);
 		gagne = PartieGagnee(tableauResultats,nb_couleurs,tour);
@@ -156,20 +164,20 @@ void JouerUnePartie(int socket_client) {
 	messageFinDePartie(tour,socket_client);
 	/*-------------------------------------------------------------------*/
 }
-
+}
 
 /**
  * @brief Selection du nombre de jeton de couleur � deviner durant la partie
  * @return n le nombre de jeton de couleur
  */
-/*int SelectionDifficultee(int sock_client) {
+/*int SelectionDifficultee(int socket_client) {
 	int n = -1; //initialisation � -1 pour rentrer dans la boucle de gestion d'erreur
 	int lg_msg_envoie, lg_msg_recu;
 	char *bufferRecep = (char *) calloc (BUFFER,  sizeof(char));
 	char *bufferEmi = (char *) calloc (BUFFER, sizeof(char));
     strcpy(bufferEmi,"Choisissez le nombre de couleur � deviner en 12 tours (entre 3 et 5): \n");
-	lg_msg_envoie = h_writes(sock_client, bufferEmi, BUFFER);
-	lg_msg_recu = h_reads(sock_client, bufferRecep, BUFFER);
+	lg_msg_envoie = h_writes(socket_client, bufferEmi, BUFFER);
+	lg_msg_recu = h_reads(socket_client, bufferRecep, BUFFER);
 	n = atoi(bufferRecep);
 	switch(n)
 		{
@@ -183,7 +191,7 @@ void JouerUnePartie(int socket_client) {
 			strcpy(bufferEmi,"Difficult� difficile: 5 jetons � deviner\n 0 indique couleur pr�sente mal plac�, 1 indique couleur bien plac�e\n");
 			break;
 		}
-		lg_msg_envoie = h_writes(sock_client, bufferEmi, BUFFER);
+		lg_msg_envoie = h_writes(socket_client, bufferEmi, BUFFER);
 	return n;
 } */
 
@@ -194,7 +202,7 @@ void JouerUnePartie(int socket_client) {
  * @param n le nombre de couleur qui compose le tableau (difficult�)
  * @param le tableau de jeu � remplir
  */
-void CreationTabCouleurs(int n, int *jeu) {
+void CreationTabCouleurs(int n, int jeu[]) {
 	int i;
 	srand(time(NULL)); //initialisation de rand
 	for(i=0; i<n; i++){
@@ -208,7 +216,7 @@ void CreationTabCouleurs(int n, int *jeu) {
  * @param n le nombre de jetons � deviner
  * @parma tour le num�ro de tour de jeu
  */
-void JouerUnTour(int *listeCouleur, int n, int tour, int sock_client) {
+void JouerUnTour(int *listeCouleur, int n, int tour, int socket_client, int nb_couleurs) {
 	int i, j;
 	int lg_msg_envoie, lg_msg_recu;
 	char buffer[50];
@@ -219,9 +227,9 @@ void JouerUnTour(int *listeCouleur, int n, int tour, int sock_client) {
 
 		/* S�lection de la couleur par le client */
 		strcpy(bufferEmi,"Couleur de la case: (1: bleu, 2: rouge, 3: vert, 4: jaune, 5: orange, 6: marron)\n");
-		lg_msg_envoie = h_writes(sock_client, bufferEmi, BUFFER);
+		lg_msg_envoie = h_writes(socket_client, bufferEmi, BUFFER);
 		/* Lecture de la couleur selectionn�e */
-		lg_msg_recu = h_reads(sock_client, bufferRecep, BUFFER);
+		lg_msg_recu = h_reads(socket_client, bufferRecep, BUFFER);
 		listeCouleur[i] = atoi(bufferRecep);
 
 		/* Affichage des couleurs s�lectionn�es */
@@ -232,7 +240,7 @@ void JouerUnTour(int *listeCouleur, int n, int tour, int sock_client) {
 			strcat(bufferEmi,buffer);
 		}
 		strcat(bufferEmi,"\n-----------------------\n");
-		lg_msg_envoie = h_writes(sock_client, bufferEmi, BUFFER);
+		lg_msg_envoie = h_writes(socket_client, bufferEmi, BUFFER);
 	}
 }
 
@@ -322,7 +330,7 @@ int PartieGagnee(int *tableauResultats, int n, int tour) {
  * et les r�sultats des tours pr�cedents
  * @param listeCouleur la liste de couleur jou�e par le joueur � ce tour ainsi qu'aux tours pr�c�dent
  * */
-void conversionTabCouleurs(int tour, int n, int *tableauResultats, int *listeCouleur, int sock_client) {
+void conversionTabCouleurs(int tour, int n, int *tableauResultats, int *listeCouleur, int socket_client) {
 	char buffer[50];
 	int i, j, lg_msg_envoie;
 	i=0;
@@ -367,20 +375,20 @@ void conversionTabCouleurs(int tour, int n, int *tableauResultats, int *listeCou
 			strcat(res,"\n-----------------------  -----------------------\n");
 		}
 	}
-	lg_msg_envoie = h_writes(sock_client, res, BUFFER);
+	lg_msg_envoie = h_writes(socket_client, res, BUFFER);
 }
 /**
  * @brief La fonction qui �crit le message de fin de partie gagn�e ou non
  * @param tour le num�ro du tour de jeu
  */
-void messageFinDePartie (int tour, int sock_client) {
+void messageFinDePartie (int tour, int socket_client) {
 	char *bufferEmi = calloc(BUFFER,sizeof(char));
 	int lg_msg_envoie;
 	if(tour==MAXTOUR) {
-		lg_msg_envoie = h_writes(sock_client, "Partie perdue, dommage! Vous etiez proche!", BUFFER);
+		lg_msg_envoie = h_writes(socket_client, "Partie perdue, dommage! Vous etiez proche!", BUFFER);
 	}
 	else {
-		lg_msg_envoie = h_writes(sock_client, "Bravo! Partie gagnee!", BUFFER);
+		lg_msg_envoie = h_writes(socket_client, "Bravo! Partie gagnee!", BUFFER);
 	}
 }
 
