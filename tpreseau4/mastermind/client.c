@@ -21,7 +21,7 @@
 
 #define SERVICE_DEFAUT "1111"
 #define SERVEUR_DEFAUT "127.0.0.1"
-#define BUFFER 50
+#define BUFFER 1024
 
 void client_appli (char *serveur, char *service);
 
@@ -80,8 +80,8 @@ int socket_no;
 int lg_msg_envoie, lg_msg_recu; // longueur des messages effectivement envoy�s et lus
 char *bufferRecep = ( char * ) calloc ( BUFFER, sizeof (char) ) ;
 char *bufferEmi = ( char * ) calloc ( BUFFER, sizeof (char) ) ;
-/*char difficulte[10]; Variable de v�rification de valeur entr�e par l'utilisateur*/
-int n; //Variable de v�rification de valeur entr�e par l'utilisateur
+
+int n;
 
 //2. je definis sockaddr_in
 adr_socket(service, serveur, SOCK_STREAM, &p_adr_distant);
@@ -91,28 +91,9 @@ socket_no = h_socket(AF_INET, SOCK_STREAM);
 h_connect(socket_no, p_adr_distant);
 /*------------------------------------------------------------------------------*/
 
-/* 4.Lecture du premier message du serveur */
-/* S�lection de la difficult� */
-/* On g�re le cas ou l'utlisateur choisi une difficult� non valide */
-/*lg_msg_recu = h_reads(socket_no, bufferRecep, BUFFER);
-do {
-printf("%s", bufferRecep);
-scanf("%s", difficulte);
-} while (strcmp(difficulte,"3")!=0 && strcmp(difficulte,"4")!=0 && strcmp(difficulte,"5")!=0);
-strcpy(bufferEmi,difficulte);
-lg_msg_envoie = h_writes(socket_no,bufferEmi,BUFFER);*/
-
-/* Affichage de la difficult� choisie */
 lg_msg_recu = h_reads(socket_no, bufferRecep, BUFFER);
 printf("%s",bufferRecep);
 
-
-/* 5.D�roulement de la partie */
-/* Tant que la partie n'est pas gagn�e ou perdue, les diff�rentes �tapes de jeu se d�roulent
- * (1) Lecture de la couleur � envoyer
- * (2) Envoie de la couleur choisie
- * (3) Lecture du tableau de r�sultat
- */
 while (strcmp(bufferRecep,"Partie perdue, dommage! Vous etiez proche!")!=0 &&
 		strcmp(bufferRecep,"Bravo! Partie gagnee!")!=0) {
 			lg_msg_recu = h_reads(socket_no, bufferRecep, BUFFER);
